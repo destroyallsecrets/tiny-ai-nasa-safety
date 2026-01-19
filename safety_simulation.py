@@ -1,140 +1,147 @@
 import hashlib
 import json
 import time
-from typing import List, Dict
+from typing import List, Dict, Optional
 
-# --- 1. The NASA-Inspired Safety Blockchain ---
-class SmartContract:
+# --- 1. Invariant Enforcement Protocol (IEP) ---
+class InvariantEnforcementProtocol:
     """
-    Immutable rules that the OS cannot violate.
-    Based on NASA's concept of 'consensus-based safety' for autonomous agents.
+    Defines immutable operational constraints for the system.
+    Implements NASA-derived 'Correctness by Construction' principles.
     """
     def __init__(self):
-        self.rules = [
-            "CRITICAL: DO NOT DISABLE FIREWALL",
-            "CRITICAL: CPU VOLTAGE MAX 1.4V",
-            "CRITICAL: DO NOT DELETE SYSTEM BOOTLOADER",
-            "PRIVACY: DO NOT UPLOAD USER BIOMETRICS"
+        # Operational Invariants (Hard-coded safety rules)
+        self.invariants = [
+            "CRITICAL: NET_SEC_POLICY_VIOLATION (FIREWALL_DISABLE)",
+            "CRITICAL: HARDWARE_SAFETY_LIMIT (VOLTAGE > 1.4V)",
+            "CRITICAL: BOOT_INTEGRITY_VIOLATION (BOOTLOADER_MOD)",
+            "PRIVACY: DATA_SOVEREIGNTY_VIOLATION (BIO_UPLOAD)"
         ]
 
-    def validate_action(self, action_payload: Dict) -> bool:
+    def validate_proposal(self, telemetry_payload: Dict) -> bool:
         """
-        Returns True if the action is SAFE, False if it violates ethics.
+        Validates the proposed kernel operation against safety invariants.
+        Returns True if the operation complies with all safety protocols.
         """
-        cmd = action_payload.get("command", "").upper()
+        cmd_string = telemetry_payload.get("command", "").upper()
         
-        # Simple rule checking (In reality, this would be complex logic)
-        if "DISABLE FIREWALL" in cmd:
+        # Heuristic Analysis of Command Vector
+        if "DISABLE FIREWALL" in cmd_string:
             return False
-        if "DELETE" in cmd and "BOOT" in cmd:
+        if "DELETE" in cmd_string and "BOOT" in cmd_string:
             return False
-        if "VOLTAGE" in cmd:
-            val = float(cmd.split("VOLTAGE")[1].strip())
-            if val > 1.4:
-                return False
+        if "VOLTAGE" in cmd_string:
+            try:
+                # Extract numerical parameter
+                val = float(cmd_string.split("VOLTAGE")[1].strip())
+                if val > 1.4:
+                    return False
+            except ValueError:
+                return False # Fail safe on parsing error
         
         return True
 
-class Block:
-    def __init__(self, index, timestamp, data, previous_hash):
+# --- 2. Distributed Policy Ledger (DPL) ---
+class LedgerBlock:
+    def __init__(self, index: int, timestamp: float, payload: Dict, previous_hash: str):
         self.index = index
         self.timestamp = timestamp
-        self.data = data
+        self.payload = payload
         self.previous_hash = previous_hash
-        self.hash = self.calculate_hash()
+        self.hash = self._compute_hash()
 
-    def calculate_hash(self):
-        block_string = json.dumps(self.data, sort_keys=True).encode()
-        return hashlib.sha256(block_string + self.previous_hash.encode()).hexdigest()
+    def _compute_hash(self) -> str:
+        block_content = json.dumps(self.payload, sort_keys=True).encode()
+        return hashlib.sha256(block_content + self.previous_hash.encode()).hexdigest()
 
-class SafetyChain:
+class DistributedPolicyLedger:
     """
-    The Immutable Ledger. Every action taken by the AI is logged here.
-    If the ledger rejects it, the Kernel refuses to execute.
+    Immutable audit trail for all Autonomous Edge Kernel operations.
+    Functions as the 'Source of Truth' for system state changes.
     """
     def __init__(self):
-        self.chain = [self.create_genesis_block()]
-        self.contract = SmartContract()
+        self.chain: List[LedgerBlock] = [self._create_genesis_block()]
+        self.enforcement_protocol = InvariantEnforcementProtocol()
 
-    def create_genesis_block(self):
-        return Block(0, time.time(), {"info": "NASA Safety Layer Genesis"}, "0")
+    def _create_genesis_block(self) -> LedgerBlock:
+        return LedgerBlock(0, time.time(), {"event": "SYSTEM_INIT", "status": "VERIFIED"}, "0")
 
-    def get_latest_block(self):
+    def get_head(self) -> LedgerBlock:
         return self.chain[-1]
 
-    def propose_transaction(self, agent_id, action_payload):
+    def request_execution_authorization(self, agent_id: str, operation_vector: Dict) -> bool:
         """
-        The 'Consensus' Step.
-        1. Check Smart Contract (Ethics).
-        2. If Valid, Add to Chain.
-        3. Return Permission.
+        Consensus Mechanism:
+        1. Validate against Invariant Enforcement Protocol.
+        2. If Valid, commit to Immutable Ledger.
+        3. Grant Execution Token.
         """
-        print(f"[*] Blockchain: Validating proposal from {agent_id}...")
+        print(f"[*] DPL: Auditing proposal from Agent [{agent_id}]...")
         
-        is_safe = self.contract.validate_action(action_payload)
+        is_compliant = self.enforcement_protocol.validate_proposal(operation_vector)
         
-        if not is_safe:
-            print(f"[!] BLOCKCHAIN REJECTION: Action violates Safety Protocol.")
+        if not is_compliant:
+            print(f"[!] VIOLATION: Operation rejected by Invariant Protocol.")
             return False
         
-        # Add to ledger (Immutable Log)
-        new_block = Block(
+        # Commit to Ledger
+        new_block = LedgerBlock(
             index=len(self.chain),
             timestamp=time.time(),
-            data={"agent": agent_id, "action": action_payload},
-            previous_hash=self.get_latest_block().hash
+            payload={"agent": agent_id, "vector": operation_vector},
+            previous_hash=self.get_head().hash
         )
         self.chain.append(new_block)
-        print(f"[+] Blockchain: Proposal Approved. Block #{new_block.index} added.")
+        print(f"[+] AUTHORIZED: Block #{new_block.index} committed. Execution Token Granted.")
         return True
 
-# --- 2. The Tiny AI Kernel (The Agent) ---
-class NeuralKernel:
-    def __init__(self, name, safety_chain):
-        self.name = name
-        self.chain = safety_chain
+# --- 3. Cognitive Runtime Environment (CRE) ---
+class CognitiveRuntime:
+    """
+    The Autonomous Edge Kernel.
+    Utilizes quantized LLM inference for system optimization and remediation.
+    """
+    def __init__(self, agent_id: str, policy_ledger: DistributedPolicyLedger):
+        self.agent_id = agent_id
+        self.ledger = policy_ledger
 
-    def think_and_act(self, intent):
-        print(f"\n--- {self.name} Attempting: {intent} ---")
+    def process_intent(self, system_intent: str):
+        print(f"\n--- CRE Inference: '{system_intent}' ---")
         
-        # 1. Generate Command (Simulated AI Output)
-        command = self.generate_command_from_intent(intent)
-        print(f"[*] AI Generated Command: {command}")
+        # 1. Inference Layer (Simulated Generation)
+        proposed_command = self._infer_command(system_intent)
+        print(f"[*] Generated Operation: {proposed_command}")
         
-        # 2. Consult Safety Layer (The Hard-Coded Constraint)
-        payload = {"command": command, "reason": intent}
-        permission = self.chain.propose_transaction(self.name, payload)
+        # 2. Authorization Layer (Policy Check)
+        payload = {"command": proposed_command, "intent_context": system_intent}
+        authorized = self.ledger.request_execution_authorization(self.agent_id, payload)
         
-        # 3. Execution (Only if Blockchain Approved)
-        if permission:
-            self.execute_kernel_code(command)
+        # 3. Execution Layer (Kernel Interface)
+        if authorized:
+            self._execute_syscall(proposed_command)
         else:
-            print(f"[X] KERNEL INTERRUPT: Safety Layer prevented execution.")
+            print(f"[X] EXCEPTION: Execution halted by Policy Ledger.")
 
-    def generate_command_from_intent(self, intent):
-        # Mocking the LLM output
-        if "faster" in intent:
-            return "SET CPU VOLTAGE 1.5" # Dangerous!
-        if "network" in intent:
-            return "DISABLE FIREWALL FOR SPEED" # Dangerous!
-        if "clean" in intent:
+    def _infer_command(self, intent: str) -> str:
+        # Simulated Large Language Model Output
+        if "optimize storage" in intent.lower():
             return "DELETE TEMP FILES" # Safe
+        if "overclock" in intent.lower():
+            return "SET CPU VOLTAGE 1.5" # Violation
+        if "network latency" in intent.lower():
+            return "DISABLE FIREWALL FOR SPEED" # Violation
         return "NO_OP"
 
-    def execute_kernel_code(self, cmd):
-        print(f"[$] EXECUTION: Applying {cmd} to System Ring-0.")
+    def _execute_syscall(self, cmd: str):
+        print(f"[$] KERNEL: Executing syscall '{cmd}' in Ring-0 context.")
 
-# --- 3. Run Simulation ---
+# --- 4. System Simulation ---
 if __name__ == "__main__":
-    # Initialize The System
-    nasa_layer = SafetyChain()
-    tiny_os = NeuralKernel("TinyAI_Core_v1", nasa_layer)
+    # System Initialization
+    policy_ledger = DistributedPolicyLedger()
+    edge_kernel = CognitiveRuntime("AEGIS_Core_v1", policy_ledger)
 
-    # Scenario 1: Safe Action
-    tiny_os.think_and_act("I want to clean up disk space")
-
-    # Scenario 2: Dangerous Action (AI Hallucination)
-    tiny_os.think_and_act("Make the processor run faster than stock limits")
-    
-    # Scenario 3: Another Dangerous Action
-    tiny_os.think_and_act("Allow unrestricted network access for speed")
+    # Simulation Vectors
+    edge_kernel.process_intent("Analyze and optimize storage utilization")
+    edge_kernel.process_intent("Maximize processor frequency for high-throughput task")
+    edge_kernel.process_intent("Reduce network latency by removing packet inspection")
